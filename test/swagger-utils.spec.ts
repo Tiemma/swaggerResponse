@@ -12,6 +12,8 @@ import {
   trimString,
   replaceRoutes,
   parseSwaggerRouteData,
+  generateResponseRef,
+  generateResponseBodySpec
 } from '../src';
 import options from '../examples/swagger-config';
 import { getSpec } from './fixtures';
@@ -123,6 +125,60 @@ describe('Swagger utils tests', () => {
     expect(buildSwaggerJSON(data)).deep.equal(expectedData);
   });
 
+  it('buildSwaggerJSON remove "data" from required without removing the example from existing documentation', () => {
+    const existingData = {
+      required: [
+        'status',
+        'data',
+      ],
+      properties: {
+        status: {
+          type: 'boolean',
+          example: true,
+        },
+        data: {
+          required: [
+            'totalCost',
+            'target',
+            'resourceIDs',
+          ],
+          properties: {
+            totalCost: {
+              type: 'number',
+              example: 0,
+            },
+            target: {
+              type: 'string',
+              example: 'bigPathName',
+            },
+            resourceIDs: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              example: [
+                '1b310f81-e49e-48fa-ae8c-3a7c29ca034e',
+              ],
+            },
+          },
+          type: 'object',
+        },
+      },
+    };
+    const expectedData = {
+      ...existingData,
+      required: [
+        'status',
+      ],
+    };
+
+    // Uses subset of possible data to find which fields are actually required
+    const data = {
+      status: true,
+    };
+    expect(buildSwaggerJSON(data, existingData)).deep.equal(expectedData);
+  });
+
   it('generateResponse works as expected', () => {
     const data = {
       status: {
@@ -198,6 +254,24 @@ describe('Swagger utils tests', () => {
     expect(findPathParameterIndex(data, 'unknown')).equal(false);
   });
 
+  it('finding existing ref name for requestBody works as expected', () => {
+    const contentType = 'application/json';
+    const responseRef = '12345';
+    const route = '/user';
+    const method = 'post';
+    const data = {
+      paths: {
+        '/user': {
+          post: {
+            requestBody: swaggerRef(contentType, responseRef),
+          },
+        },
+      },
+    } as any;
+    expect(generateResponseRef(data, route, method, contentType)).equal(responseRef);
+    expect(generateResponseRef()).not.equal(responseRef);
+  });
+
   it('trimString works as expected', () => {
     const expected = 'param';
     expect(trimString(':param?')).equal(expected);
@@ -223,5 +297,9 @@ describe('Swagger utils tests', () => {
     const route = '/api/v1/$Organization.id';
     const context = { Organization: { id: 1 } };
     expect(evaluateRoute(route, context)).to.equal('/api/v1/1');
+  });
+
+  it('generateResponseBodySpec should return undefined on empty input', () => {
+    expect(generateResponseBodySpec()).to.equal(undefined);
   });
 });
